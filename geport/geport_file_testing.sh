@@ -5,10 +5,10 @@ app="$1"
 dir="$2"
 verbose=false
 
-check() {
+check_signature() {
   for i in "$1"/*; do
     if [[ ! -d $i && ($i != "sig") && ($i != "$dir/sig") && ($i != "$1/sig") && ($i != "$1/*") && ($(wc -c <"$i") -lt 4000000000) ]]; then
-	if [[ $verbose == true ]]; then
+        if [[ $verbose == true ]]; then
           echo "testing $i"
         fi
 
@@ -20,14 +20,38 @@ check() {
         echo "something wrong with "$i" file"
         exit 2
       fi
-    
+
       is_ok=$($app -v ./priv ./pub)
       if [[ $is_ok != "public key is OK" ]]; then
         echo "something wrong with public key atfer signing "$i" file"
         exit 3
       fi
     else
-      [ "$(ls -A "$i")" ] && check "$i"
+      [ "$(ls -A "$i")" ] && check_signature "$i"
+    fi
+  done
+}
+
+
+
+check_hash() {
+  for i in "$1"/*; do
+    if [[ ! -d $i && ($i != "$1/*") && ($(wc -c <"$i") -lt 4000000000) ]]; then
+        if [[ $verbose == true ]]; then
+          echo "testing $i"
+        fi
+
+      geport_result=$($app --gen-sha512 "$i" | grep -Eho '^[^ ]*')
+      sha_result=$(sha512sum "$i" | grep -Eho '^[^ ]*')
+      if [ "$geport_result" != "$sha_result" ]; then
+        echo "something wrong with "$i" file:"
+        echo "result from geport implementation: $geport_result"
+        echo "result from sha512sum: $sha512sum"
+        exit 2
+      fi
+
+    else
+      [ "$(ls -A "$i")" ] && check_hash "$i"
     fi
   done
 }
@@ -64,9 +88,11 @@ fi
 
 
 
-check $dir
+check_signature $dir
+check_hash $dir
 
 echo "OK"
 rm ./pub ./priv ./sig
 
 exit 0
+
